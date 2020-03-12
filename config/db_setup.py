@@ -15,7 +15,9 @@ USER_TABLE_CMAP         = {'UserID'         : 'integer',
                            'UserName'       : 'text'}
 LEDGER_USER_TABLE_CMAP  = {'UserID'         : 'integer',
                            'LedgerID'       : 'integer',
-                           'LedgerUserID'   : 'text'}
+                           'LedgerUserID'   : 'text',
+                           'LedgerUserPriv' : 'text',
+                           'LedgerUserPub'  : 'text'}
 LEDGER_TABLE_CMAP       = {'LedgerID'       : 'integer',
                            'LedgerName'     : 'text'}
 TRANSACTION_TABLE_CMAP  = {'TxGlobalID'     : 'integer',
