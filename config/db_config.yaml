@@ -1,0 +1,5 @@
+DB_NAME                 : 'mtp.db'
+USER_TABLE_NAME         : 'tb_Users'
+LEDGER_USER_TABLE_NAME  : 'tb_LedgerUsers'
+LEDGER_TABLE_NAME       : 'md_Ledgers'
+TRANSACTION_TABLE_NAME  : 'tb_Transactions'
