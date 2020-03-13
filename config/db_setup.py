@@ -70,6 +70,7 @@ def insert_ledger_md(conn=conn, tb_name=LEDGER_TABLE_NAME):
                (2, 'Iroha')]
     qry = 'INSERT INTO {} VALUES(?, ?)'.format(tb_name)
     c.executemany(qry, ledgers)
+    conn.commit()
     print('Inserted master data for ledger table {}'.format(tb_name))
 
 # execute functions so that this script can easily be run
