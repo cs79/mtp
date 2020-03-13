@@ -20,3 +20,11 @@ def get_max_userid(conn=conn, tb_name=cfg['USER_TABLE_NAME']):
     if res is None:
         return 0
     return res
+
+def get_ledgerids(conn=conn, tb_name=cfg['LEDGER_TABLE_NAME'], lname=None):
+    if lname is None:
+        qry = 'SELECT * FROM {}'.format(tb_name)
+    else:
+        qry = 'SELECT LedgerID \
+               FROM {} WHERE LedgerName = \'{}\''.format(tb_name, lname)
+    return pd.read_sql(qry, conn)
