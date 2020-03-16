@@ -9,6 +9,7 @@ USER_TABLE_NAME         = 'tb_Users'
 LEDGER_USER_TABLE_NAME  = 'tb_LedgerUsers'
 LEDGER_TABLE_NAME       = 'md_Ledgers'
 TRANSACTION_TABLE_NAME  = 'tb_Transactions'
+BALANCE_TABLE_NAME      = 'tb_Balances' # for convenience
 
 # table-defining column maps - edit here
 USER_TABLE_CMAP         = {'UserID'         : 'integer',
@@ -27,6 +28,9 @@ TRANSACTION_TABLE_CMAP  = {'TxGlobalID'     : 'integer',
                            'TxDest'         : 'integer',
                            'TxAmount'       : 'real',
                            'Timestamp'      : 'integer'}
+BALANCE_TABLE_CMAP      = {'UserID'         : 'integer',
+                           'LedgerID'       : 'integer',
+                           'Balance'        : 'integer'}
 
 # create connection
 conn = sqlite3.connect(DB_NAME)
@@ -59,6 +63,7 @@ def build_all(conn=conn):
     build_table(conn, LEDGER_USER_TABLE_NAME, LEDGER_USER_TABLE_CMAP)
     build_table(conn, LEDGER_TABLE_NAME, LEDGER_TABLE_CMAP)
     build_table(conn, TRANSACTION_TABLE_NAME, TRANSACTION_TABLE_CMAP)
+    build_table(conn, BALANCE_TABLE_NAME, BALANCE_TABLE_CMAP)
     print('Finished building tables from available definitions')
 
 def insert_ledger_md(conn=conn, tb_name=LEDGER_TABLE_NAME):
