@@ -72,9 +72,11 @@ def add_user_to_db(userid, conn=conn, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
         if status[0][0] == 'STATELESS_VALIDATION_FAILED':
             warnings.warn('User create transaction failed - check tx format')
             return
+        if status[0][0] == 'COMMITTED':
+            print('Successfully created user {} in Iroha'.format(userid))
     # once we know that the account exists in Iroha, add it to SQL as well
     global_uid = get_max_userid() + 1
-    ledgerid = get_ledgerids(lname='Iroha')['LedgerID'][0]
+    ledgerid = int(get_ledgerids(lname='Iroha')['LedgerID'][0])
     if privkey is None:
         privkey = ''
     else:
@@ -86,6 +88,6 @@ def add_user_to_db(userid, conn=conn, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
     user_info = (global_uid, ledgerid, userid, privkey, pubkey)
     sql_qry = 'INSERT INTO {} VALUES (?,?,?,?,?)'.format(tb_name)
     c = conn.cursor()
-    c.execute(sql_qry)
+    c.execute(sql_qry, user_info)
     conn.commit()
     print('Added user information for userid {} to SQL'.format(userid))
