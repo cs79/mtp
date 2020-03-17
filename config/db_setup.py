@@ -66,6 +66,27 @@ def build_all(conn=conn):
     build_table(conn, BALANCE_TABLE_NAME, BALANCE_TABLE_CMAP)
     print('Finished building tables from available definitions')
 
+def empty_table(conn=conn, tb_name=None):
+    '''
+    Delete all records from a given table.
+    '''
+    qry = 'DELETE FROM {}'.format(tb_name)
+    c = conn.cursor()
+    c.execute(qry)
+    conn.commit()
+    print('Deleted contents of table {}'.format(tb_name))
+
+def empty_all(conn=conn):
+    '''
+    Quickly empty the entire database so it can be rebuilt.
+    '''
+    empty_table(conn, USER_TABLE_NAME)
+    empty_table(conn, LEDGER_USER_TABLE_NAME)
+    empty_table(conn, LEDGER_TABLE_NAME)
+    empty_table(conn, TRANSACTION_TABLE_NAME)
+    empty_table(conn, BALANCE_TABLE_NAME)
+    print('Finished emptying records from all tables')
+
 def insert_ledger_md(conn=conn, tb_name=LEDGER_TABLE_NAME):
     '''
     Add master data for ledgers used by multi-token platform (hardcoded).
@@ -77,6 +98,14 @@ def insert_ledger_md(conn=conn, tb_name=LEDGER_TABLE_NAME):
     c.executemany(qry, ledgers)
     conn.commit()
     print('Inserted master data for ledger table {}'.format(tb_name))
+
+def full_rebuild(conn=conn):
+    '''
+    Quickly reset the entire database.
+    '''
+    empty_all(conn)
+    build_all(conn)
+    insert_ledger_md(conn)
 
 # execute functions so that this script can easily be run
 build_all()
