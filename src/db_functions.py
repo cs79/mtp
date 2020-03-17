@@ -26,9 +26,9 @@ def get_global_userid(conn, userid, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
     if userid not in ids['LedgerUserID'].values:
         warnings.warn('LedgerUserID {} not found in database'.format(userid))
         return
-    return ids[ids['LedgerUserID'] == userid]['UserID'].values[0]
+    return int(ids[ids['LedgerUserID'] == userid]['UserID'].values[0])
 
-def get_max_userid(conn, tb_name=cfg['USER_TABLE_NAME']):
+def get_max_userid(conn, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
     '''
     Fetches maximum UserID value in use in SQL database.
     '''
@@ -100,3 +100,16 @@ def update_balance(conn, userid, ledgerid, amt, tb_name=cfg['BALANCE_TABLE_NAME'
                WHERE UserID = {}'.format(tb_name, amt, userid) # unsafe
         c.execute(qry)
     conn.commit()
+
+def get_privkey(conn, userid, ledgerid, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
+    '''
+    Fetch user's managed private key for transaction signing.
+    '''
+    qry = 'SELECT LedgerUserPriv from {} \
+           WHERE LedgerUserID = \'{}\' \
+           AND LedgerID = {}'.format(tb_name, userid, ledgerid) # unsafe
+    res = pd.read_sql(qry, conn)
+    if len(res) == 0:
+        warnings.warn('No such userid found: {}'.format(userid))
+        return
+    return res.loc[0, 'LedgerUserPriv']
