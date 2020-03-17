@@ -71,3 +71,32 @@ def get_user_balance(conn, userid, tb_name=cfg['BALANCE_TABLE_NAME']):
     if len(res) == 0:
         return 0
     return res.iloc[0,0] # hopefully safe, need to test this though
+
+def get_transactions(conn, tb_name=cfg['TRANSACTION_TABLE_NAME']):
+    '''
+    Fetches transactions table from SQL.
+    '''
+    qry = 'SELECT * FROM {}'.format(tb_name)
+    return pd.read_sql(qry, conn)
+
+def get_balances(conn, tb_name=cfg['BALANCE_TABLE_NAME']):
+    '''
+    Fetches balances table from SQL.
+    '''
+    qry = 'SELECT * FROM {}'.format(tb_name)
+    return pd.read_sql(qry, conn)
+
+def update_balance(conn, userid, ledgerid, amt, tb_name=cfg['BALANCE_TABLE_NAME']):
+    '''
+    Adds a new balance record for userid to balances table, or updates existing.
+    '''
+    c = conn.cursor()
+    if userid not in get_balances(conn)['UserID'].values:
+        qry = 'INSERT INTO {} VALUES (?,?,?)'.format(tb_name)
+        c.execute(qry, (userid, ledgerid, amt))
+    else:
+        qry = 'UPDATE {} \
+               SET Balance = {} \
+               WHERE UserID = {}'.format(tb_name, amt, userid) # unsafe
+        c.execute(qry)
+    conn.commit()
