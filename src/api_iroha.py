@@ -16,8 +16,8 @@ user_public_key = IrohaCrypto.derive_public_key(user_private_key)
 iroha = Iroha('admin@test')
 net = IrohaGrpc()
 
-DB_NAME = 'mtp.db'
-conn = sqlite3.connect(DB_NAME)
+cfg = yaml.load(open('../config/db_config.yaml'), Loader=yaml.SafeLoader)
+conn = sqlite3.connect('../config/{}'.format(cfg['DB_NAME']))
 
 UID_PAT = '[a-z0-9]+@[a-z0-9]+'
 LEDGER_ASSET = 'testasset#test'
@@ -90,6 +90,7 @@ def add_user_to_db(userid, conn=conn, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
         pubkey = str(pubkey)[2:-1] # string representation of hex bytes
     user_info = (global_uid, ledgerid, userid, privkey, pubkey)
     sql_qry = 'INSERT INTO {} VALUES (?,?,?,?,?)'.format(tb_name)
+    # TODO: make this add info to the general user table as well
     c = conn.cursor()
     c.execute(sql_qry, user_info)
     conn.commit()
@@ -174,18 +175,68 @@ def mint_to_account(amt, dest_acct, gtxid=None, conn=conn, asset=LEDGER_ASSET,
         warnings.warn('Unable to commit minting transaction - check Iroha')
         return
     # if the transaction committed in Iroha, update SQLite3 database as well
-    guid = int(get_global_userid(conn, dest_acct))
+    guid = get_global_userid(conn, dest_acct)
     lid = get_ledgerids(conn, lname='Iroha')
     bal = get_user_balance(conn, dest_acct)
     ts = tx.payload.reduced_payload.created_time
     txid = get_txid_string(tx)
     tx_vals = (gtxid, lid, txid, 'MINT', dest_acct, amt, ts) # pack these into tuple
-    bal_vals = (guid, lid, bal+amt)
+    # bal_vals = (guid, lid, bal+amt)
     tx_qry = 'INSERT INTO {} VALUES (?,?,?,?,?,?,?)'.format(tx_tb)
     # insert values into SQL store
     c = conn.cursor()
     c.execute(tx_qry, tx_vals)
-    c.execute(bal_qry, bal_vals)
     conn.commit()
     update_balance(conn, guid, lid, bal+amt, bal_tb)
     print('Added transaction info for minting transaction {}'.format(txid))
+
+def transfer_asset(from_acct, to_acct, amt, conn, memo=None, gtxid=None,
+                   asset=LEDGER_ASSET, tx_tb=cfg['TRANSACTION_TABLE_NAME'],
+                   bal_tb=cfg['BALANCE_TABLE_NAME']):
+    '''
+    Transfer amt of asset from one account to another.
+    '''
+    # check for valid amt and memo params
+    assert amt > 0, 'amt must be a positive numeric value'
+    amt = round(amt, 2)
+    if memo is not None:
+        assert type(memo) == str, 'memo must be in string format'
+    else:
+        memo = ''
+    # check that from acct has at least amt of asset available
+    from_bal = get_user_balance(conn, from_acct, bal_tb)
+    if from_bal < amt:
+        warnings.warn('Account {} has insufficient funds'.format(from_acct))
+        return
+    # if from_acct has sufficient balance, prepare the transaction in Iroha
+    sa = str(amt)
+    lid = get_ledgerids(conn, lname='Iroha')
+    cmd = [iroha.command('TransferAsset', src_account_id=from_acct, \
+                         dest_account_id=to_acct, asset_id=asset, \
+                         description=memo, amount=sa)]
+    # create the transaction *as* from_acct
+    tx = Iroha(from_acct).transaction(cmd)
+    from_privkey = get_privkey(conn, from_acct, lid)
+    IrohaCrypto.sign_transaction(tx, from_privkey)
+    net.send_tx(tx)
+    tx_status = [s for s in net.tx_status_stream(tx)]
+    if not 'COMMITTED' in [s[0] for s in tx_status]:
+        warnings.warn('Unable to commit transfer transaction - check Iroha')
+        return
+    # if the transaction is committed in Iroha, add to SQL tables as well
+    guid_from = get_global_userid(conn, from_acct)
+    guid_to = get_global_userid(conn, to_acct)
+    lid = get_ledgerids(conn, lname='Iroha')
+    bal_from = get_user_balance(conn, from_acct)
+    bal_to = get_user_balance(conn, to_acct)
+    ts = tx.payload.reduced_payload.created_time
+    txid = get_txid_string(tx)
+    tx_vals = (gtxid, lid, txid, from_acct, to_acct, amt, ts) # pack these into tuple
+    tx_qry = 'INSERT INTO {} VALUES (?,?,?,?,?,?,?)'.format(tx_tb)
+    # insert values into SQL store
+    c = conn.cursor()
+    c.execute(tx_qry, tx_vals)
+    conn.commit()
+    update_balance(conn, guid_from, lid, bal_from-amt, bal_tb)
+    update_balance(conn, guid_to, lid, bal_to+amt, bal_tb)
+    print('Added transaction info for transfer {}'.format(txid))
