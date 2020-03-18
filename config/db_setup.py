@@ -103,10 +103,19 @@ def full_rebuild(conn=conn):
     '''
     Quickly reset the entire database.
     '''
-    empty_all(conn)
-    build_all(conn)
-    insert_ledger_md(conn)
+    try:
+        empty_all(conn)
+    except:
+        pass
+    try:
+        build_all(conn)
+    except:
+        pass
+    try:
+        insert_ledger_md(conn)
+    except:
+        pass
 
 # execute functions so that this script can easily be run
-build_all()
-insert_ledger_md()
+# build_all()
+# insert_ledger_md()
