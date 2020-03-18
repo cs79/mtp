@@ -36,7 +36,7 @@ def get_max_userid(conn, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
     res = pd.read_sql(qry, conn).iloc[0,0]
     if res is None:
         return 0
-    return res
+    return int(res)
 
 def get_ledgerids(conn, tb_name=cfg['LEDGER_TABLE_NAME'], lname=None):
     '''
