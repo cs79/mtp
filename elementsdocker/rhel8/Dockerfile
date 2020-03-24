@@ -13,13 +13,15 @@ RUN yum install -y wget gcc gcc-c++ make autoconf automake libtool bzip2 \
                 openssl-devel
 
 # install Boost
-RUN cd ~ \
+RUN cd /usr/lib \
     && wget 'https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.tar.bz2' \
     && mkdir boost && cd boost \
-    && tar -jxvf /root/boost_1_72_0.tar.bz2 \
+    && tar -jxvf /usr/lib/boost_1_72_0.tar.bz2 \
     && cd boost_1_72_0 \
     && ./bootstrap.sh \
-    && ./b2 install
+    && ./b2 install \
+    && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd) \
+    && rm -f /usr/lib/boost_1_72_0.tar.bz
 
 # install libevent
 RUN yum remove libevent \
@@ -32,7 +34,8 @@ RUN yum remove libevent \
     && make install
 
 # install Berkeley DB
-RUN mkdir bdb4 \
+RUN cd ~ \
+    && mkdir bdb4 \
     && wget 'http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz' \
     && tar -xzvf db-4.8.30.NC.tar.gz \
     && sed -i 's/__atomic_compare_exchange/__atomic_compare_exchange_db/g' \
@@ -42,6 +45,10 @@ RUN mkdir bdb4 \
        --prefix=/root/bdb4/ \
     && make install
 
+# install Python & libraries for Elements app development
+RUN yum install -y python3 \
+    && pip3 install virtualenv
+
 # install Elements
 RUN cd ~/elements \
     && ./autogen.sh \
@@ -49,7 +56,3 @@ RUN cd ~/elements \
                    CPPFLAGS="-I/root/bdb4/include/" \
     && make \
     && make install
-
-# install Python & libraries for Elements app development
-RUN yum install -y python3 \
-    && pip3 install virtualenv
