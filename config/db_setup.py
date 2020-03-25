@@ -1,7 +1,7 @@
 # stand-in SQLite3 database for basic managed services
 
 # imports
-import sqlite3
+# import sqlite3
 
 # configuration
 DB_NAME                 = 'mtp.db'
@@ -33,7 +33,7 @@ BALANCE_TABLE_CMAP      = {'UserID'         : 'integer',
                            'Balance'        : 'integer'}
 
 # create connection
-conn = sqlite3.connect(DB_NAME)
+# conn = sqlite3.connect(DB_NAME)
 
 # helper functions
 def cmap_to_query_str(cmap):
@@ -44,7 +44,7 @@ def cmap_to_query_str(cmap):
     return ', '.join([' '.join(t) for t in ctypes])
 
 # table builder functions
-def build_table(conn=conn, tb_name=None, cmap=None):
+def build_table(conn, tb_name=None, cmap=None):
     '''
     Create empty table at connected database.
     Table columns are identified via a column mapping (cmap) object.
@@ -55,7 +55,7 @@ def build_table(conn=conn, tb_name=None, cmap=None):
     conn.commit()
     print('Created table {}'.format(tb_name))
 
-def build_all(conn=conn):
+def build_all(conn):
     '''
     Quickly build the database from available column maps (hardcoded).
     '''
@@ -66,7 +66,7 @@ def build_all(conn=conn):
     build_table(conn, BALANCE_TABLE_NAME, BALANCE_TABLE_CMAP)
     print('Finished building tables from available definitions')
 
-def empty_table(conn=conn, tb_name=None):
+def empty_table(conn, tb_name=None):
     '''
     Delete all records from a given table.
     '''
@@ -76,7 +76,7 @@ def empty_table(conn=conn, tb_name=None):
     conn.commit()
     print('Deleted contents of table {}'.format(tb_name))
 
-def empty_all(conn=conn):
+def empty_all(conn):
     '''
     Quickly empty the entire database so it can be rebuilt.
     '''
@@ -87,7 +87,7 @@ def empty_all(conn=conn):
     empty_table(conn, BALANCE_TABLE_NAME)
     print('Finished emptying records from all tables')
 
-def insert_ledger_md(conn=conn, tb_name=LEDGER_TABLE_NAME):
+def insert_ledger_md(conn, tb_name=LEDGER_TABLE_NAME):
     '''
     Add master data for ledgers used by multi-token platform (hardcoded).
     '''
@@ -99,7 +99,7 @@ def insert_ledger_md(conn=conn, tb_name=LEDGER_TABLE_NAME):
     conn.commit()
     print('Inserted master data for ledger table {}'.format(tb_name))
 
-def full_rebuild(conn=conn):
+def full_rebuild(conn):
     '''
     Quickly reset the entire database.
     '''
@@ -115,7 +115,3 @@ def full_rebuild(conn=conn):
         insert_ledger_md(conn)
     except:
         pass
-
-# execute functions so that this script can easily be run
-# build_all()
-# insert_ledger_md()
