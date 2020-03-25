@@ -2,15 +2,22 @@
 
 # imports
 import yaml
-import sqlite3
+# import sqlite3
 import pandas as pd
 import warnings
 
 # configuration
 cfg = yaml.load(open('../config/db_config.yaml'), Loader=yaml.SafeLoader)
-conn = sqlite3.connect('../config/{}'.format(cfg['DB_NAME']))
+# conn = sqlite3.connect('../config/{}'.format(cfg['DB_NAME']))
 
 # functions
+def get_platform_users(conn, tb_name=cfg['USER_TABLE_NAME']):
+    '''
+    Fetches platform-level usernames and IDs from SQL database.
+    '''
+    qry = 'SELECT * FROM {}'.format(tb_name)
+    return pd.read_sql(qry, conn)
+
 def get_user_data(conn, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
     '''
     Fetches ledger-specific user information from SQL database.
