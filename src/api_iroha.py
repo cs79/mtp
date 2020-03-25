@@ -11,16 +11,17 @@ import warnings, re
 
 # configuration (per Iroha example guide for now)
 admin_private_key = 'f101537e319568c765b2cc89698325604991dca57b9716b58016b253506cab70'
-user_private_key = IrohaCrypto.private_key()
-user_public_key = IrohaCrypto.derive_public_key(user_private_key)
+# user_private_key = IrohaCrypto.private_key()
+# user_public_key = IrohaCrypto.derive_public_key(user_private_key)
 iroha = Iroha('admin@test')
 net = IrohaGrpc()
 
-cfg = yaml.load(open('../config/db_config.yaml'), Loader=yaml.SafeLoader)
-conn = sqlite3.connect('../config/{}'.format(cfg['DB_NAME']))
+dbcfg = yaml.load(open('../config/db_config.yaml'), Loader=yaml.SafeLoader)
+dltcfg = yaml.load(open('dltcfg.yaml'), Loader=yaml.SafeLoader)
+conn = sqlite3.connect('../config/{}'.format(dbcfg['DB_NAME']))
 
 UID_PAT = '[a-z0-9]+@[a-z0-9]+'
-LEDGER_ASSET = 'testasset#test'
+LEDGER_ASSET = '{}#{}'.format(dltcfg['ASSET_NAME'], dltcfg['IROHA_DOMAIN'])
 
 # functions
 def get_iroha_user_info(userid):
@@ -51,10 +52,13 @@ def create_iroha_user_account(userid, pubkey):
 # - somehow await confirmation / test within some amount of time if accepted
 # - if accepted on DLT, prep SQL and insert new record as appropriate
 # QUESTION: WHAT IF THIS USER IS "THE SAME" AS A USER THAT EXISTS ON A DIFFERENT LEDGER?
-def add_user_to_db(userid, conn=conn, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
+def add_user_to_db(userid, guid, conn,
+                   tb_name=dbcfg['LEDGER_USER_TABLE_NAME']):
     '''
     Add a user to the Iroha ledger and the shared database.
     N.B. userid should be in proper Iroha format, e.g. "user@domain".
+    The guid value (global platform-level user ID) should be passed from
+    the shared API, which will generate it.
     '''
     # check correct userid format
     assert re.match(UID_PAT, userid) is not None, 'invalid userid format'
@@ -78,7 +82,6 @@ def add_user_to_db(userid, conn=conn, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
         if status[0][0] == 'COMMITTED':
             print('Successfully created user {} in Iroha'.format(userid))
     # once we know that the account exists in Iroha, add it to SQL as well
-    global_uid = get_max_userid(conn) + 1
     ledgerid = get_ledgerids(conn, lname='Iroha')
     if privkey is None:
         privkey = ''
@@ -88,9 +91,8 @@ def add_user_to_db(userid, conn=conn, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
         pubkey = ''
     else:
         pubkey = str(pubkey)[2:-1] # string representation of hex bytes
-    user_info = (global_uid, ledgerid, userid, privkey, pubkey)
+    user_info = (guid, ledgerid, userid, privkey, pubkey)
     sql_qry = 'INSERT INTO {} VALUES (?,?,?,?,?)'.format(tb_name)
-    # TODO: make this add info to the general user table as well
     c = conn.cursor()
     c.execute(sql_qry, user_info)
     conn.commit()
@@ -145,9 +147,9 @@ def get_tx_info(txid):
     return status
 
 # should be reconfigured to handle domains in a more robust implementation
-def mint_to_account(amt, dest_acct, gtxid=None, conn=conn, asset=LEDGER_ASSET,
-                    tx_tb=cfg['TRANSACTION_TABLE_NAME'],
-                    bal_tb=cfg['BALANCE_TABLE_NAME']):
+def mint_to_account(amt, dest_acct, conn, gtxid=None, asset=LEDGER_ASSET,
+                    tx_tb=dbcfg['TRANSACTION_TABLE_NAME'],
+                    bal_tb=dbcfg['BALANCE_TABLE_NAME']):
     '''
     Create amt of asset on admin@test account and transfer to dest_acct.
     '''
@@ -191,8 +193,8 @@ def mint_to_account(amt, dest_acct, gtxid=None, conn=conn, asset=LEDGER_ASSET,
     print('Added transaction info for minting transaction {}'.format(txid))
 
 def transfer_asset(from_acct, to_acct, amt, conn, memo=None, gtxid=None,
-                   asset=LEDGER_ASSET, tx_tb=cfg['TRANSACTION_TABLE_NAME'],
-                   bal_tb=cfg['BALANCE_TABLE_NAME']):
+                   asset=LEDGER_ASSET, tx_tb=dbcfg['TRANSACTION_TABLE_NAME'],
+                   bal_tb=dbcfg['BALANCE_TABLE_NAME']):
     '''
     Transfer amt of asset from one account to another.
     '''
