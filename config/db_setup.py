@@ -10,27 +10,32 @@ LEDGER_USER_TABLE_NAME  = 'tb_LedgerUsers'
 LEDGER_TABLE_NAME       = 'md_Ledgers'
 TRANSACTION_TABLE_NAME  = 'tb_Transactions'
 BALANCE_TABLE_NAME      = 'tb_Balances' # for convenience
+ADDRESS_TABLE_NAME      = 'tb_Addresses' # for UTXO-based platforms
 
 # table-defining column maps - edit here
-USER_TABLE_CMAP         = {'UserID'         : 'integer',
-                           'UserName'       : 'text'}
-LEDGER_USER_TABLE_CMAP  = {'UserID'         : 'integer',
-                           'LedgerID'       : 'integer',
-                           'LedgerUserID'   : 'text',
-                           'LedgerUserPriv' : 'text',
-                           'LedgerUserPub'  : 'text'}
-LEDGER_TABLE_CMAP       = {'LedgerID'       : 'integer',
-                           'LedgerName'     : 'text'}
-TRANSACTION_TABLE_CMAP  = {'TxGlobalID'     : 'integer',
-                           'LedgerID'       : 'integer',
-                           'LedgerTxID'     : 'text',
-                           'TxOrigin'       : 'integer',
-                           'TxDest'         : 'integer',
-                           'TxAmount'       : 'real',
-                           'Timestamp'      : 'integer'}
-BALANCE_TABLE_CMAP      = {'UserID'         : 'integer',
-                           'LedgerID'       : 'integer',
-                           'Balance'        : 'integer'}
+USER_TABLE_CMAP         = {'UserID'             : 'integer',
+                           'UserName'           : 'text'}
+LEDGER_USER_TABLE_CMAP  = {'UserID'             : 'integer',
+                           'LedgerID'           : 'integer',
+                           'LedgerUserID'       : 'text',
+                           'LedgerUserPriv'     : 'text',
+                           'LedgerUserPub'      : 'text'}
+LEDGER_TABLE_CMAP       = {'LedgerID'           : 'integer',
+                           'LedgerName'         : 'text'}
+TRANSACTION_TABLE_CMAP  = {'TxGlobalID'         : 'integer',
+                           'LedgerID'           : 'integer',
+                           'LedgerTxID'         : 'text',
+                           'TxOrigin'           : 'integer',
+                           'TxDest'             : 'integer',
+                           'TxAmount'           : 'real',
+                           'Timestamp'          : 'integer'}
+BALANCE_TABLE_CMAP      = {'UserID'             : 'integer',
+                           'LedgerID'           : 'integer',
+                           'Balance'            : 'integer'}
+ADDRESS_TABLE_CMAP      = {'UserID'             : 'integer',
+                           'LedgerID'           : 'integer',
+                           'LedgerUserAddress'  : 'text',
+                           'AddressPrivKey'     : 'text'}
 
 # create connection
 # conn = sqlite3.connect(DB_NAME)
@@ -64,6 +69,7 @@ def build_all(conn):
     build_table(conn, LEDGER_TABLE_NAME, LEDGER_TABLE_CMAP)
     build_table(conn, TRANSACTION_TABLE_NAME, TRANSACTION_TABLE_CMAP)
     build_table(conn, BALANCE_TABLE_NAME, BALANCE_TABLE_CMAP)
+    build_table(conn, ADDRESS_TABLE_NAME, ADDRESS_TABLE_CMAP)
     print('Finished building tables from available definitions')
 
 def empty_table(conn, tb_name=None):
@@ -85,6 +91,7 @@ def empty_all(conn):
     empty_table(conn, LEDGER_TABLE_NAME)
     empty_table(conn, TRANSACTION_TABLE_NAME)
     empty_table(conn, BALANCE_TABLE_NAME)
+    empty_table(conn, ADDRESS_TABLE_NAME)
     print('Finished emptying records from all tables')
 
 def insert_ledger_md(conn, tb_name=LEDGER_TABLE_NAME):
