@@ -20,6 +20,7 @@ import pandas as pd
 import warnings
 from db_functions import *
 import api_iroha as irh
+import api_elements as elt
 
 # configuration
 dbcfg = yaml.load(open('../config/db_config.yaml'), Loader=yaml.SafeLoader)
@@ -47,7 +48,8 @@ def create_account(username, conn, tb_name=dbcfg['USER_TABLE_NAME']):
     # once the user is in the global platform, add to various DLT platforms
     iroha_uid = '{}@{}'.format(username, dltcfg['IROHA_DOMAIN'])
     irh.add_user_to_db(iroha_uid, guid, conn)
-
+    elt.add_user_to_db(username, guid, conn)
+    
     # add other DLT API calls here when ready
 
     print('Finished creating DLT user accounts for user {}'.format(username))
