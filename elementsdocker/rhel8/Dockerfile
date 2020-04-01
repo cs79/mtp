@@ -20,7 +20,8 @@ RUN cd /usr/lib \
     && cd boost_1_72_0 \
     && ./bootstrap.sh \
     && ./b2 install \
-    && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd) \
+    && export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib \
+    && ldconfig \
     && rm -f /usr/lib/boost_1_72_0.tar.bz
 
 # install libevent
@@ -56,3 +57,49 @@ RUN cd ~/elements \
                    CPPFLAGS="-I/root/bdb4/include/" \
     && make \
     && make install
+
+# configure Elements test environment
+RUN cd ~ \
+    && mkdir elementsdir1 \
+    && mkdir elementsdir2 \
+    && cp ~/elements/contrib/assets_tutorial/elements1.conf \
+          ~/elementsdir1/elements.conf \
+    && cp ~/elements/contrib/assets_tutorial/elements2.conf \
+          ~/elementsdir2/elements.conf \
+    && cd ~/elementsdir1 \
+    && sed -i 's/validatepegin=1/validatepegin=0/g' elements.conf \
+    && echo -e '\ndatadir=/elementsdata\nwalletdir=/elementswallets' \
+            >> elements.conf \
+    && cd ~/elementsdir2 \
+    && sed -i 's/validatepegin=1/validatepegin=0/g' elements.conf \
+    && echo -e '\ndatadir=/elementsdata\nwalletdir=/elementswallets' \
+            >> elements.conf
+
+# set up aliases for Elements test example
+RUN cd ~/elements/src \
+    && shopt -s expand_aliases \
+    && echo 'alias e1-dae="$HOME/elements/src/elementsd \
+            -datadir=$HOME/elementsdir1"' >> ~/.bashrc \
+    && echo 'alias e1-cli="$HOME/elements/src/elements-cli \
+            -datadir=$HOME/elementsdir1"' >> ~/.bashrc \
+    && echo 'alias e2-dae="$HOME/elements/src/elementsd \
+            -datadir=$HOME/elementsdir2"' >> ~/.bashrc \
+    && echo 'alias e2-cli="$HOME/elements/src/elements-cli \
+            -datadir=$HOME/elementsdir2"' >> ~/.bashrc \
+    && echo 'alias e1-qt="$HOME/elements/src/qt/elements-qt \
+            -datadir=$HOME/elementsdir1"' >> ~/.bashrc \
+    && echo 'alias e2-qt="$HOME/elements/src/qt/elements-qt \
+            -datadir=$HOME/elementsdir2"' >> ~/.bashrc
+
+# configure environment variable for Boost
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+# configure ports
+EXPOSE 8332 18332 18443
+
+# configure volumes for wallet store and block store
+VOLUME ["/elementsdata"]
+VOLUME ["/elementswallets"]
+
+# set entrypoint for Elements
+CMD elementsd -validatepegin=0 -datadir=/elementsdata -walletdir=/elementswallets
