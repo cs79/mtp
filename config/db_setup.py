@@ -34,7 +34,9 @@ BALANCE_TABLE_CMAP      = {'UserID'             : 'integer',
                            'Balance'            : 'integer'}
 ADDRESS_TABLE_CMAP      = {'UserID'             : 'integer',
                            'LedgerID'           : 'integer',
-                           'LedgerUserAddress'  : 'text',
+                           'CTAddress'          : 'text',
+                           'ConfidentialKey'    : 'text',
+                           'NonCTAddress'       : 'text',
                            'AddressPrivKey'     : 'text'}
 
 # create connection
