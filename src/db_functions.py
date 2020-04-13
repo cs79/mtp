@@ -93,6 +93,13 @@ def get_balances(conn, tb_name=cfg['BALANCE_TABLE_NAME']):
     qry = 'SELECT * FROM {}'.format(tb_name)
     return pd.read_sql(qry, conn)
 
+def get_addresses(conn, tb_name=cfg['ADDRESS_TABLE_NAME']):
+    '''
+    Fetches addresses table from SQL.
+    '''
+    qry = 'SELECT * FROM {}'.format(tb_name)
+    return pd.read_sql(qry, conn)
+
 def update_balance(conn, userid, ledgerid, amt, tb_name=cfg['BALANCE_TABLE_NAME']):
     '''
     Adds a new balance record for userid to balances table, or updates existing.
@@ -109,12 +116,24 @@ def update_balance(conn, userid, ledgerid, amt, tb_name=cfg['BALANCE_TABLE_NAME'
     conn.commit()
 
 def record_transaction(conn, gtxid, ledgerid, ltxid, from, to, amt, timestamp,
-                       memo, tb_name = cfg['TRANSACTION_TABLE_NAME']):
+                       memo, tb_name=cfg['TRANSACTION_TABLE_NAME']):
     '''
     Adds a transaction record for specified ledger to the transactions table.
     '''
     vals = (gtxid, ledgerid, ltxid, from, to, amt, timestamp, memo)
-    qry = 'INSERT INTO {} VALUES (?,?,?,?,?,?,?,?)'.format(tx_tb)
+    qry = 'INSERT INTO {} VALUES (?,?,?,?,?,?,?,?)'.format(tb_name)
+    c = conn.cursor()
+    c.execute(qry, vals)
+    conn.commit()
+
+def insert_address(conn, guid, ledgerid, ctaddr, ckey, nctaddr, privkey,
+                   tb_name=cfg['ADDRESS_TABLE_NAME']):
+    '''
+    Inserts a new record into address table (e.g. when a new receiving address
+    is generated in Elements / UTXO-based system).
+    '''
+    vals = (guid, ledgerid, ctaddr, ckey, nctaddr, privkey)
+    qry = 'INSERT INTO {} VALUES (?,?,?,?,?,?)'.format(tb_name)
     c = conn.cursor()
     c.execute(qry, vals)
     conn.commit()
