@@ -3,6 +3,7 @@
 # imports
 import sqlite3, yaml
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
+from db_functions import * # own script
 import warnings
 
 # configuration (per Elements tutorial for now)
@@ -12,6 +13,8 @@ RPC_USER = 'user1'
 RPC_PASSWORD = 'password1'
 BASE_WALLET = '' # default if no name specified
 ELEMENTS_ASSET_NAME = 'bitcoin' # configurable at cli when launching chain
+CUSTOM_ASSET = None
+CUSTOM_RIT = None
 
 # database configuration for R/W of ledger-specific metadata
 DB_NAME = 'mtp.db' # should ideally just read this from a config YAML file
@@ -84,9 +87,25 @@ def add_user_to_db(userid, guid, conn,
 
 # either need to issue a custom asset when chain starts WITH a reissuance token, or need to create one with a reissuance token, which will need to be tracked by its hex ID
 
+def create_asset(asset_amt, token_amt, blind=False):
+    '''
+    Creates asset_amt of a new custom asset, with token_amt of reissuance
+    tokens for that asset.
+    If blind == True, the custom asset issuance will be blinded.
+
+    For testing, the asset identifier will be stored in CUSTOM_ASSET,
+    and the reissuance token identifier will be stored in CUSTOM_RIT.
+    '''
+    r = get_rpc_connection(RPC_USER, RPC_PASSWORD, HOST_ADDRESS, RPC_PORT,
+                           BASE_WALLET) # issue from base wallet for now
+    itx = r.issueasset(asset_amt, token_amt, blind)
+    CUSTOM_ASSET = itx['asset']
+    CUSTOM_RIT = itx['token']
+    return itx
+
 def mint_to_account(amt, dest_acct, conn, gtxid=None, gen_new_addr=True,
                     ct=False,
-                    asset=ELEMENTS_ASSET_NAME,
+                    asset=CUSTOM_ASSET,
                     tx_tb=dbcfg['TRANSACTION_TABLE_NAME'],
                     bal_tb=dbcfg['BALANCE_TABLE_NAME']):
     '''
@@ -95,17 +114,63 @@ def mint_to_account(amt, dest_acct, conn, gtxid=None, gen_new_addr=True,
     If gen_new_addr is True, a new receiving address will be generated for
     dest_acct. If ct is True, a confidential receiving address will be used.
     '''
+    # set up some internal reference variables
+    reissued = False
+    lid = get_ledgerids(conn, lname='Elements')
+    base_bal = get_user_balance(conn, BASE_WALLET, bal_tb)
+    dest_bal = get_user_balance(conn, dest_acct, bal_tb)
+    base_guid = get_global_userid(conn, BASE_WALLET)
+    dest_guid = get_global_userid(conn, dest_acct)
     # check that asset exists
     r = get_rpc_connection(RPC_USER, RPC_PASSWORD, HOST_ADDRESS, RPC_PORT,
                            BASE_WALLET)
     iss = r.listissuances()
     assets = [i['assetlabel'] for i in iss if 'assetlabel' in i.keys()]
-    if not ELEMENTS_ASSET_NAME in assets:
+    if not asset in assets:
         warnings.warn('Could not find issued asset {}'.format(asset))
         return
+    # set up receiving address for dest_acct according to passed params
+
+    # code goes here
+    dest_addr = None # UPDATE ME
+
     # check that the issuing (base) wallet has sufficient amount of the asset
     bwi = r.getwalletinfo()
-    if not bwi['balance'][ELEMENTS_ASSET_NAME] > amt:
+    if not bwi['balance'][asset] > amt:
         # reissue to base wallet
-
+        rtx = r.reissueasset(asset, amt)
+        # confirm that the transaction was not abandoned
+        rtxdata = r.gettransaction(rtx['txid'])
+        rstx = [i for i in rtxdata['details'] if i['asset'] == asset
+                and i['category'] == 'send'][0]
+        if rstx['abandoned']:
+            warnings.warn('Transaction {} was abandoned - aborting'.format(rtx['txid']))
+            return
+        reissued = True
+        # if the reissuance succeeded, log this in SQL as well
+        record_transaction(conn, gtxid, lid, rtx['txid'], 'MINT',
+                           rstx['address'], amt, rtxdata['timereceived'],
+                           'Top up base wallet', tx_tb) # or rtxdata['time']
+        update_balance(conn, base_guid, lid, base_bal+amt, bal_tb)
+    # base wallet should now have sufficient custom asset to "mint" to account
+    memo = 'Minting of asset to account'
+    mtx = r.sendtoaddress(dest_addr, amt, memo, '', False, False, 1, 'UNSET', asset)
+    # generate to address to confirm (1) block
+    r.generatetoaddress(1, dest_addr)
+    # confirm that transaction was not abandoned
+    mtxdata = r.gettransaction(mtx)
+    if mtxdata['details'][0]['abandoned']:
+        warnings.warn('Transaction {} was abandoned - aborting'.format(mtx))
+        return
+    # if the transaction wasn't abandoned, update the SQL database as well
+    if reissued:
+        # refresh base balance
+        base_bal = get_user_balance(conn, BASE_WALLET, bal_tb)
+        # ensure correct gtxid if it was passed
+        if gtxid is not None
+            gtxid += 1
+    record_transaction(conn, gtxid, lid, mtx, 'MINT', dest_acct, amt,
+                       mtxdata['timereceived'], memo, tx_tb)
+    update_balance(conn, base_guid, lid, base_bal-amt, bal_tb)
+    update_balance(conn, dest_guid, lid, dest_bal+amt, bal_tb)
     return
