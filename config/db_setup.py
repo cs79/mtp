@@ -28,7 +28,8 @@ TRANSACTION_TABLE_CMAP  = {'TxGlobalID'         : 'integer',
                            'TxOrigin'           : 'integer',
                            'TxDest'             : 'integer',
                            'TxAmount'           : 'real',
-                           'Timestamp'          : 'integer'}
+                           'Timestamp'          : 'integer',
+                           'Memo'               : 'text'}
 BALANCE_TABLE_CMAP      = {'UserID'             : 'integer',
                            'LedgerID'           : 'integer',
                            'Balance'            : 'integer'}
