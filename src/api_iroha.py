@@ -1,7 +1,7 @@
 # API adapter for Iroha allowing generic functionality called by api_shared
 
 # imports
-import sqlite3
+import sqlite3, yaml
 from db_functions import * # own script
 import pandas as pd
 from iroha import Iroha, IrohaGrpc, IrohaCrypto
