@@ -91,15 +91,45 @@ RUN cd ~/elements/src \
     && echo 'alias e2-qt="$HOME/elements/src/qt/elements-qt \
             -datadir=$HOME/elementsdir2"' >> ~/.bashrc
 
+# install tmux for development convenience
+RUN cd ~ \
+    && wget https://invisible-mirror.net/archives/ncurses/ncurses-6.2.tar.gz \
+    && tar -xvzf ncurses-6.2.tar.gz \
+    && cd ncurses-6.2 \
+    && ./configure && make && make install \
+    && cd ~ \
+    && wget http://mirror.rit.edu/gnu/texinfo/texinfo-6.7.tar.gz \
+    && tar -xvzf texinfo-6.7.tar.gz \
+    && cd texinfo-6.7 \
+    && ./configure && make && make install \
+    && cd ~ \
+    && wget http://mirror.rit.edu/gnu/help2man/help2man-1.43.3.tar.gz \
+    && tar -xvzf help2man-1.43.3.tar.gz \
+    && cd help2man-1.43.3 \
+    && ./configure && make && make install \
+    && cd ~ \
+    && wget http://mirror.rit.edu/gnu/bison/bison-3.5.4.tar.gz \
+    && tar -xvzf bison-3.5.4.tar.gz \
+    && cd bison-3.5.4 \
+    && ./configure && make && make install \
+    && cd ~ \
+    && git clone https://github.com/tmux/tmux.git \
+    && cd tmux \
+    && sh autogen.sh \
+    && ./configure && make && make install
+
+# install Python libraries for development convenience
+RUN pip3 install pyyaml pandas ipython python-bitcoinrpc
+
 # configure environment variable for Boost
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
 # configure ports
-EXPOSE 8332 18332 18443
+EXPOSE 8332 18332 18443 18884
 
 # configure volumes for wallet store and block store
 VOLUME ["/elementsdata"]
 VOLUME ["/elementswallets"]
 
 # set entrypoint for Elements
-CMD elementsd -validatepegin=0 -datadir=/elementsdata -walletdir=/elementswallets
+CMD elementsd -validatepegin=0 -datadir=/elementsdata -walletdir=/elementswallets -rpcallowip=127.0.0.1 -rpcuser="user1" -rpcpassword="password1" -rpcport=18884 -rpcbind=127.0.0.1:18884 -chain=regtest
