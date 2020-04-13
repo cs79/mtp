@@ -164,11 +164,12 @@ def mint_to_account(amt, dest_acct, conn, gtxid=None, asset=LEDGER_ASSET,
         warnings.warn('dest_acct does not exist - aborting mint operation')
         return
     # if asset exists, mint amt to admin and transfer to dest_acct
+    memo = 'Minting of asset to account'
     sa = str(amt)
     cmd = [iroha.command('AddAssetQuantity', asset_id=asset, amount=sa),
            iroha.command('TransferAsset', src_account_id='admin@test',
                          dest_account_id=dest_acct, asset_id=asset,
-                         description='Minting of asset to account', amount=sa)]
+                         description=memo, amount=sa)]
     tx = iroha.transaction(cmd)
     IrohaCrypto.sign_transaction(tx, admin_private_key)
     net.send_tx(tx)
@@ -182,13 +183,9 @@ def mint_to_account(amt, dest_acct, conn, gtxid=None, asset=LEDGER_ASSET,
     bal = get_user_balance(conn, dest_acct)
     ts = tx.payload.reduced_payload.created_time
     txid = get_txid_string(tx)
-    tx_vals = (gtxid, lid, txid, 'MINT', dest_acct, amt, ts) # pack these into tuple
-    # bal_vals = (guid, lid, bal+amt)
-    tx_qry = 'INSERT INTO {} VALUES (?,?,?,?,?,?,?)'.format(tx_tb)
     # insert values into SQL store
-    c = conn.cursor()
-    c.execute(tx_qry, tx_vals)
-    conn.commit()
+    record_transaction(conn, gtxid, lid, txid, 'MINT', dest_acct, amt, ts,
+                       memo, tx_tb)
     update_balance(conn, guid, lid, bal+amt, bal_tb)
     print('Added transaction info for minting transaction {}'.format(txid))
 
@@ -233,12 +230,9 @@ def transfer_asset(from_acct, to_acct, amt, conn, memo=None, gtxid=None,
     bal_to = get_user_balance(conn, to_acct)
     ts = tx.payload.reduced_payload.created_time
     txid = get_txid_string(tx)
-    tx_vals = (gtxid, lid, txid, from_acct, to_acct, amt, ts) # pack these into tuple
-    tx_qry = 'INSERT INTO {} VALUES (?,?,?,?,?,?,?)'.format(tx_tb)
     # insert values into SQL store
-    c = conn.cursor()
-    c.execute(tx_qry, tx_vals)
-    conn.commit()
+    record_transaction(conn, gtxid, lid, txid, from_acct, to_acct, amt, ts,
+                       memo, tx_tb)
     update_balance(conn, guid_from, lid, bal_from-amt, bal_tb)
     update_balance(conn, guid_to, lid, bal_to+amt, bal_tb)
     print('Added transaction info for transfer {}'.format(txid))
