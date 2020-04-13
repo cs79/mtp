@@ -108,6 +108,17 @@ def update_balance(conn, userid, ledgerid, amt, tb_name=cfg['BALANCE_TABLE_NAME'
         c.execute(qry)
     conn.commit()
 
+def record_transaction(conn, gtxid, ledgerid, ltxid, from, to, amt, timestamp,
+                       memo, tb_name = cfg['TRANSACTION_TABLE_NAME']):
+    '''
+    Adds a transaction record for specified ledger to the transactions table.
+    '''
+    vals = (gtxid, ledgerid, ltxid, from, to, amt, timestamp, memo)
+    qry = 'INSERT INTO {} VALUES (?,?,?,?,?,?,?,?)'.format(tx_tb)
+    c = conn.cursor()
+    c.execute(qry, vals)
+    conn.commit()
+
 def get_privkey(conn, userid, ledgerid, tb_name=cfg['LEDGER_USER_TABLE_NAME']):
     '''
     Fetch user's managed private key for transaction signing.
