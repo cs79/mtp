@@ -107,7 +107,8 @@ def mint_to_account(amt, dest_acct, conn, gtxid=None, gen_new_addr=True,
                     ct=False,
                     asset=CUSTOM_ASSET,
                     tx_tb=dbcfg['TRANSACTION_TABLE_NAME'],
-                    bal_tb=dbcfg['BALANCE_TABLE_NAME']):
+                    bal_tb=dbcfg['BALANCE_TABLE_NAME'],
+                    addr_tb=dbcfg['ADDRESS_TABLE_NAME']):
     '''
     Transfers amt of asset from base account to dest_acct. If an insufficient
     amount of the asset exists, the reissuance token is used to create more.
@@ -130,10 +131,44 @@ def mint_to_account(amt, dest_acct, conn, gtxid=None, gen_new_addr=True,
         warnings.warn('Could not find issued asset {}'.format(asset))
         return
     # set up receiving address for dest_acct according to passed params
-
-    # code goes here
-    dest_addr = None # UPDATE ME
-
+    dest_addr = None
+    if !gen_new_addr:
+        # ensure that we have an available address to use already
+        addrs = get_addresses(conn, addr_tb)
+        caddrs = addrs[addrs['UserID'] == dest_guid]
+        # see if a CT address was requested
+        if ct:
+            caddrs = caddrs[caddrs['CTAddress'].notnull()]
+        if len(candidate_addrs) > 0:
+            # just use the last address recorded
+            addr_row = candidate_addrs.tail(1)
+            # use either CT or non-CT address
+            if ct:
+                dest_addr = addr_row['CTAddress'].values[0]
+            else:
+                dest_addr = addr_row['NonCTAddress'].values[0]
+        else:
+            warnings.warn('No preexisting address to use - generating new')
+    # generate a new receiving address if one was not fetched
+    if dest_addr is None:
+        # interact with RPC as receiving wallet
+        r2 = get_rpc_connection(RPC, RPC_PASSWORD, HOST_ADDRESS, RPC_PORT,
+                                dest_acct)
+        newaddr = r2.getnewaddress()
+        addrinfo = r2.getaddressinfo(newaddr)
+        # extract info to record in SQL
+        ctaddr = addrinfo['confidential']
+        ckey = addrinfo['confidential_key']
+        nctaddr = addrinfo['unconfidential']
+        privkey = r2.dumpprivkey(newaddr)
+        # set dest_addr based on ct
+        if ct:
+            dest_addr = ctaddr
+        else:
+            dest_addr = nctaddr
+        # update SQL with the new key
+        insert_address(conn, dest_guid, lid, ctaddr, ckey, nctaddr, privkey,
+                       addr_tb)
     # check that the issuing (base) wallet has sufficient amount of the asset
     bwi = r.getwalletinfo()
     if not bwi['balance'][asset] > amt:
