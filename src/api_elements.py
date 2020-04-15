@@ -103,6 +103,57 @@ def create_asset(asset_amt, token_amt, blind=False):
     CUSTOM_RIT = itx['token']
     return itx
 
+def handle_receiving_address(dest_acct, dest_guid, gen_new_addr, ct, conn,
+                             addr_tb=dbcfg['ADDRESS_TABLE_NAME']):
+    '''
+    Receiving address handler for acct. If gen_new_addr is False, will attempt
+    to look up an appropriate (confidential or non-confidential) preexisting
+    receiving address; defaults to the last address recorded in SQL.
+    If ct is True, will use a confidential receiving address, generating a new
+    one if no prior confidential address is found during lookup or if
+    gen_new_addr is True.
+    '''
+    dest_addr = None
+    if !gen_new_addr:
+        # ensure that we have an available address to use already
+        addrs = get_addresses(conn, addr_tb)
+        caddrs = addrs[addrs['UserID'] == dest_guid]
+        # see if a CT address was requested
+        if ct:
+            caddrs = caddrs[caddrs['CTAddress'].notnull()]
+        if len(caddrs) > 0:
+            # just use the last address recorded
+            addr_row = caddrs.tail(1)
+            # use either CT or non-CT address
+            if ct:
+                dest_addr = addr_row['CTAddress'].values[0]
+            else:
+                dest_addr = addr_row['NonCTAddress'].values[0]
+        else:
+            warnings.warn('No preexisting address to use - generating new')
+    # generate a new receiving address if one was not fetched
+    if pd.isnull(dest_addr):
+        # interact with RPC as receiving wallet
+        r2 = get_rpc_connection(RPC_USER, RPC_PASSWORD, HOST_ADDRESS, RPC_PORT,
+                                dest_acct)
+        newaddr = r2.getnewaddress()
+        addrinfo = r2.getaddressinfo(newaddr)
+        # extract info to record in SQL
+        ctaddr = addrinfo['confidential']
+        ckey = addrinfo['confidential_key']
+        nctaddr = addrinfo['unconfidential']
+        privkey = r2.dumpprivkey(newaddr)
+        # set dest_addr based on ct
+        if ct:
+            dest_addr = ctaddr
+        else:
+            dest_addr = nctaddr
+        # update SQL with the new key
+        insert_address(conn, dest_guid, lid, ctaddr, ckey, nctaddr, privkey,
+                       addr_tb)
+    return dest_addr
+
+
 def mint_to_account(amt, dest_acct, conn, gtxid=None, gen_new_addr=True,
                     ct=False,
                     asset=CUSTOM_ASSET,
@@ -131,44 +182,8 @@ def mint_to_account(amt, dest_acct, conn, gtxid=None, gen_new_addr=True,
         warnings.warn('Could not find issued asset {}'.format(asset))
         return
     # set up receiving address for dest_acct according to passed params
-    dest_addr = None
-    if !gen_new_addr:
-        # ensure that we have an available address to use already
-        addrs = get_addresses(conn, addr_tb)
-        caddrs = addrs[addrs['UserID'] == dest_guid]
-        # see if a CT address was requested
-        if ct:
-            caddrs = caddrs[caddrs['CTAddress'].notnull()]
-        if len(candidate_addrs) > 0:
-            # just use the last address recorded
-            addr_row = candidate_addrs.tail(1)
-            # use either CT or non-CT address
-            if ct:
-                dest_addr = addr_row['CTAddress'].values[0]
-            else:
-                dest_addr = addr_row['NonCTAddress'].values[0]
-        else:
-            warnings.warn('No preexisting address to use - generating new')
-    # generate a new receiving address if one was not fetched
-    if dest_addr is None:
-        # interact with RPC as receiving wallet
-        r2 = get_rpc_connection(RPC, RPC_PASSWORD, HOST_ADDRESS, RPC_PORT,
-                                dest_acct)
-        newaddr = r2.getnewaddress()
-        addrinfo = r2.getaddressinfo(newaddr)
-        # extract info to record in SQL
-        ctaddr = addrinfo['confidential']
-        ckey = addrinfo['confidential_key']
-        nctaddr = addrinfo['unconfidential']
-        privkey = r2.dumpprivkey(newaddr)
-        # set dest_addr based on ct
-        if ct:
-            dest_addr = ctaddr
-        else:
-            dest_addr = nctaddr
-        # update SQL with the new key
-        insert_address(conn, dest_guid, lid, ctaddr, ckey, nctaddr, privkey,
-                       addr_tb)
+    dest_addr = handle_receiving_address(dest_acct, dest_guid, gen_new_addr,
+                                         ct, conn, addr_tb)
     # check that the issuing (base) wallet has sufficient amount of the asset
     bwi = r.getwalletinfo()
     if not bwi['balance'][asset] > amt:
@@ -189,7 +204,8 @@ def mint_to_account(amt, dest_acct, conn, gtxid=None, gen_new_addr=True,
         update_balance(conn, base_guid, lid, base_bal+amt, bal_tb)
     # base wallet should now have sufficient custom asset to "mint" to account
     memo = 'Minting of asset to account'
-    mtx = r.sendtoaddress(dest_addr, amt, memo, '', False, False, 1, 'UNSET', asset)
+    mtx = r.sendtoaddress(dest_addr, amt, memo, '', False, False, 1, 'UNSET',
+                          asset)
     # generate to address to confirm (1) block
     r.generatetoaddress(1, dest_addr)
     # confirm that transaction was not abandoned
@@ -207,5 +223,44 @@ def mint_to_account(amt, dest_acct, conn, gtxid=None, gen_new_addr=True,
     record_transaction(conn, gtxid, lid, mtx, 'MINT', dest_acct, amt,
                        mtxdata['timereceived'], memo, tx_tb)
     update_balance(conn, base_guid, lid, base_bal-amt, bal_tb)
+    update_balance(conn, dest_guid, lid, dest_bal+amt, bal_tb)
+    return
+
+def transfer_asset(from_acct, dest_acct, amt, conn, memo=None, gtxid=None,
+                   gen_new_addr=True, ct=False, asset=CUSTOM_ASSET,
+                   tx_tb=dbcfg['TRANSACTION_TABLE_NAME'],
+                   bal_tb=dbcfg['BALANCE_TABLE_NAME'],
+                   addr_tb=dbcfg['ADDRESS_TABLE_NAME']):
+    '''
+    Transfer amt of asset from from_acct to dest_acct, using a new receiving
+    address and/or confidential receiving address if requested.
+    '''
+    # set up internal reference variables
+    lid = get_ledgerids(conn, lname='Elements')
+    from_bal = get_user_balance(conn, from_acct, bal_tb)
+    dest_bal = get_user_balance(conn, dest_acct, bal_tb)
+    from_guid = get_global_userid(conn, from_acct)
+    dest_guid = get_global_userid(conn, dest_acct)
+    # send requests as sending wallet
+    r = get_rpc_connection(RPC_USER, RPC_PASSWORD, HOST_ADDRESS, RPC_PORT,
+                           from_acct)
+    # prep receiving address per parameters
+    dest_addr = handle_receiving_address(dest_acct, dest_guid, gen_new_addr,
+                                         ct, conn, addr_tb)
+    # send from from_acct to the specified dest_addr
+    tx = r.sendtoaddress(dest_addr, amt, memo, '', False, False, 1, 'UNSET',
+                         asset)
+    # generate to address to confirm (1) block
+    r.generatetoaddress(1, dest_addr)
+    # confirm that transaction was not abandoned
+    # (will fail with JSONRPCException if insufficient funds)
+    txdata = r.gettransaction(tx)
+    if txdata['details'][0]['abandoned']:
+        warnings.warn('Transaction {} was abandoned - aborting'.format(tx))
+        return
+    # if the transaction wasn't abandoned, update the SQL database as well
+    record_transaction(conn, gtxid, lid, tx, from_acct, dest_acct, amt,
+                       txdata['timereceived'], memo, tx_tb)
+    update_balance(conn, from_guid, lid, from_bal-amt, bal_tb)
     update_balance(conn, dest_guid, lid, dest_bal+amt, bal_tb)
     return
